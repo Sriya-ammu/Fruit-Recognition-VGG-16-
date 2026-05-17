@@ -1,72 +1,58 @@
 import torch
-from torch.optim.lr_scheduler import StepLR
+import torch.nn as nn
 
-# Dummy values for testing
-best_val_acc = 0
-best_val_loss = float('inf')
+from src.model import build_model
+from src.dataset import train_loader
 
-epochs_without_improvement = 0
+def train_one_epoch(model,loader,loss_fn,optimizer,device):
+    """
+    Runs one full pass over the training set
+    
+    Steps per batch:
+    1. zero_grad - clear accumulated gradients from previous batch
+    2. forward - get model predictions
+    3. loss - compute loss between predictions and true labels
+    4. backward - compute gradients via backprop
+    5. step - update weights using those grads
+    
+    return - avg_loss(float) - mean loss across all batches in this epoch
+    """
+    model.train()
+    running_loss = 0.0
 
-# Example optimizer placeholder
-optimizer = torch.optim.Adam(
-    [torch.randn(1, requires_grad=True)],
-    lr=0.001
-)
+    for images, labels in loader:
+        images = images.to(device)
+        labels = labels.to(device)
 
-# Learning rate scheduler
-scheduler = StepLR(
-    optimizer,
-    step_size=5,
-    gamma=0.1
-)
+        optimizer.zero_grad()
+        outputs = model(images)
+        loss = loss_fn(outputs,labels)
+        loss.backward()
+        optimizer.step()
 
-# Total epochs
-N = 3
+        running_loss+=loss.item() # .item pulls plain float from tensor
 
-for epoch in range(N):
+        avg_loss = running_loss/len(loader)
+        return avg_loss
+    
+# exp 1 
 
-    print(f"\nEpoch {epoch+1}/{N}")
+if __name__ == "__main__":
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}\n")
 
-    # Dummy training results
-    train_loss = 0.5 - (epoch * 0.05)
+    EPOCHS = 3
+    LR = 1e-4
 
-    # Dummy validation results
-    val_loss = 0.4 + (epoch * 0.02)
-    val_acc = 70 + (epoch * 2)
+    model = build_model(num_classes=15).to(device)
+    loss_fn = nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=LR)
 
-    print(f"Train Loss: {train_loss:.4f}")
-    print(f"Validation Loss: {val_loss:.4f}")
-    print(f"Validation Accuracy: {val_acc:.2f}%")
+    exp1_train_losses = []
 
-    # Save best model
-    if val_acc > best_val_acc:
+    for epoch in range(1,EPOCHS+1):
+        avg_loss = train_one_epoch(model,train_loader,loss_fn,optimizer,device)
+        exp1_train_losses.append(round(avg_loss, 4))
+        print(f"Epoch {epoch}/{EPOCHS} | Train Loss: {avg_loss:.4f}")
 
-        best_val_acc = val_acc
-
-        torch.save(
-            {"epoch": epoch},
-            "best_model.pth"
-        )
-
-        print("Best model saved!")
-
-    # Early stopping logic
-    if val_loss < best_val_loss:
-
-        best_val_loss = val_loss
-        epochs_without_improvement = 0
-
-    else:
-
-        epochs_without_improvement += 1
-
-    # Stop if no improvement for 3 epochs
-    if epochs_without_improvement >= 3:
-
-        print("Early stopping triggered!")
-        break
-
-    # Update learning rate
-    scheduler.step()
-
-    print("Scheduler step completed")
+    print(f"\nexp1_train_losses = {exp1_train_losses}")
