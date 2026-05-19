@@ -3,9 +3,9 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 
 from src.model import build_model
-from src.dataset import train_loader
+from src.dataset import train_loader,val_loader
 from src.loss import FocalLoss
-from src.validate import validate
+from src.Validate import validate
 
 def train_one_epoch(model,loader,loss_fn,optimizer,device):
     """
@@ -44,7 +44,7 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}\n")
 
-    EPOCHS = 3
+    EPOCHS = 10
     LR = 1e-4
     NUM_CLASSES=15
     INPUT_DIM   = 20
@@ -65,13 +65,28 @@ if __name__ == "__main__":
     optimizer = torch.optim.Adam(model.parameters(), lr=LR)
 
     exp1_train_losses = []
+    best_val_acc = 0.0
 
     for epoch in range(1,EPOCHS+1):
-        avg_loss = train_one_epoch(model,train_loader,loss_fn,optimizer,device)
-        exp1_train_losses.append(round(avg_loss, 4))
-        print(f"Epoch {epoch}/{EPOCHS} | Train Loss: {avg_loss:.4f}")
+        train_loss = train_one_epoch(model,train_loader,loss_fn,optimizer,device)
+        val_loss, val_acc = validate(model,val_loader,loss_fn, device)
+
+        exp1_train_losses.append(round(train_loss,4))
+
+        print(f"Epoch {epoch:02d}/{EPOCHS} | "
+              f"Train Loss: {train_loss:.4f} | "
+              f"Val Loss: {val_loss:.4f} | "
+              f"Val Acc: {val_acc*100:.2f}%")
+        
+        #save best checkpoint
+        if val_acc> best_val_acc:
+            best_val_acc=val_acc
+            torch.save(model.state_dict(),"results/checkpoints/checkpoint_ce.pth")
+            print(f"✓ checkpoint_ce.pth saved (val_acc={val_acc*100:.2f}%)")
+
 
     print(f"\nexp1_train_losses = {exp1_train_losses}")
+    print(f"Best Val Accuracy : {best_val_acc*100:.2f}%")
 
 # ── Experiment 2: FocalLoss(alpha=1, gamma=2) ─────────────────────────────
     print("\n── Experiment 2: FocalLoss(alpha=1, gamma=2) ──")
